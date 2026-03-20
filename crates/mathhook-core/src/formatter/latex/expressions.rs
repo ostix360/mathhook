@@ -210,7 +210,7 @@ fn format_power(
     }
 
     if let Expression::Function { name, args } = base {
-        println!("print function: {}", name);
+        // println!("print function: {}", name);
         return Ok(format!(
             "\\{}^{{{}}}({})",
             name,

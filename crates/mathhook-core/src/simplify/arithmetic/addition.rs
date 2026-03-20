@@ -26,44 +26,285 @@ fn extract_trig_squared(expr: &Expression, func: &str) -> Option<Expression> {
     None
 }
 
-fn check_pythagorean(terms: &[Expression]) -> Option<Vec<Expression>> {
-    for (i, t1) in terms.iter().enumerate() {
-        for (j, t2) in terms.iter().enumerate() {
-            if i >= j {
-                continue;
-            }
-            if let (Some(arg1), Some(arg2)) = (
-                extract_trig_squared(t1, "sin"),
-                extract_trig_squared(t2, "cos"),
-            ) {
-                if arg1 == arg2 {
-                    let mut remaining: Vec<_> = terms
-                        .iter()
-                        .enumerate()
-                        .filter(|(k, _)| *k != i && *k != j)
-                        .map(|(_, e)| e.clone())
-                        .collect();
-                    remaining.push(Expression::integer(1));
-                    return Some(remaining);
-                }
-            }
-            if let (Some(arg1), Some(arg2)) = (
-                extract_trig_squared(t1, "cos"),
-                extract_trig_squared(t2, "sin"),
-            ) {
-                if arg1 == arg2 {
-                    let mut remaining: Vec<_> = terms
-                        .iter()
-                        .enumerate()
-                        .filter(|(k, _)| *k != i && *k != j)
-                        .map(|(_, e)| e.clone())
-                        .collect();
-                    remaining.push(Expression::integer(1));
-                    return Some(remaining);
-                }
+fn extract_scaled_trig_squared(expr: &Expression, func: &str) -> Option<(Expression, Expression)> {
+    if let Some(arg) = extract_trig_squared(expr, func) {
+        return Some((Expression::integer(1), arg));
+    }
+
+    if let Expression::Mul(factors) = expr {
+        for (index, factor) in factors.iter().enumerate() {
+            if let Some(arg) = extract_trig_squared(factor, func) {
+                let coeff_factors: Vec<_> = factors
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, _)| *i != index)
+                    .map(|(_, factor)| factor.clone())
+                    .collect();
+
+                let coeff = match coeff_factors.len() {
+                    0 => Expression::integer(1),
+                    1 => coeff_factors[0].clone(),
+                    _ => simplify_multiplication(&coeff_factors),
+                };
+
+                return Some((coeff, arg));
             }
         }
     }
+
+    None
+}
+
+fn trig_squared(func: &str, arg: Expression) -> Expression {
+    Expression::pow(Expression::function(func, vec![arg]), Expression::integer(2))
+}
+
+fn build_scaled_term(coeff: Expression, base: Expression) -> Expression {
+    match coeff {
+        Expression::Number(ref num) if num.is_one() => base,
+        _ => simplify_multiplication(&[coeff, base]),
+    }
+}
+
+fn expressions_match(lhs: &Expression, rhs: &Expression) -> bool {
+    lhs.simplify() == rhs.simplify()
+}
+
+fn negate_expression(expr: &Expression) -> Expression {
+    simplify_multiplication(&[Expression::integer(-1), expr.clone()])
+}
+
+fn expressions_are_negations(lhs: &Expression, rhs: &Expression) -> bool {
+    expressions_match(lhs, &negate_expression(rhs))
+}
+
+fn build_expression_from_factors(factors: Vec<Expression>) -> Expression {
+    match factors.len() {
+        0 => Expression::integer(1),
+        1 => factors.into_iter().next().unwrap(),
+        _ => simplify_multiplication(&factors),
+    }
+}
+
+fn extract_commutative_factors(expr: &Expression) -> Option<Vec<Expression>> {
+    if !expr.commutativity().can_sort() {
+        return None;
+    }
+
+    match expr {
+        Expression::Mul(factors) => Some(factors.iter().cloned().collect()),
+        _ => Some(vec![expr.clone()]),
+    }
+}
+
+fn extract_common_commutative_factors(
+    lhs: &Expression,
+    rhs: &Expression,
+) -> Option<(Vec<Expression>, Expression, Expression)> {
+    let mut lhs_factors = extract_commutative_factors(lhs)?;
+    let rhs_factors = extract_commutative_factors(rhs)?;
+    let mut common_factors = Vec::new();
+    let mut rhs_used = vec![false; rhs_factors.len()];
+
+    for lhs_factor in &lhs_factors {
+        if let Some((index, _)) = rhs_factors
+            .iter()
+            .enumerate()
+            .find(|(index, rhs_factor)| !rhs_used[*index] && *rhs_factor == lhs_factor)
+        {
+            rhs_used[index] = true;
+            common_factors.push(lhs_factor.clone());
+        }
+    }
+
+    if common_factors.is_empty() {
+        return None;
+    }
+
+    for common_factor in &common_factors {
+        if let Some(index) = lhs_factors.iter().position(|factor| factor == common_factor) {
+            lhs_factors.remove(index);
+        }
+    }
+
+    let rhs_remaining: Vec<_> = rhs_factors
+        .into_iter()
+        .enumerate()
+        .filter(|(index, _)| !rhs_used[*index])
+        .map(|(_, factor)| factor)
+        .collect();
+
+    Some((
+        common_factors,
+        build_expression_from_factors(lhs_factors),
+        build_expression_from_factors(rhs_remaining),
+    ))
+}
+
+fn try_direct_trig_identity_pair(lhs: &Expression, rhs: &Expression) -> Option<Expression> {
+    if let (Some((sin_coeff, sin_arg)), Some((cos_coeff, cos_arg))) = (
+        extract_scaled_trig_squared(lhs, "sin"),
+        extract_scaled_trig_squared(rhs, "cos"),
+    ) {
+        if sin_arg == cos_arg && expressions_match(&sin_coeff, &cos_coeff) {
+            return Some(sin_coeff);
+        }
+    }
+
+    if let (Some((cos_coeff, cos_arg)), Some((sin_coeff, sin_arg))) = (
+        extract_scaled_trig_squared(lhs, "cos"),
+        extract_scaled_trig_squared(rhs, "sin"),
+    ) {
+        if sin_arg == cos_arg && expressions_match(&sin_coeff, &cos_coeff) {
+            return Some(cos_coeff);
+        }
+    }
+
+    if let Some((tan_coeff, tan_arg)) = extract_scaled_trig_squared(lhs, "tan") {
+        if expressions_match(&tan_coeff, rhs) {
+            return Some(build_scaled_term(tan_coeff, trig_squared("sec", tan_arg)));
+        }
+    }
+
+    if let Some((tan_coeff, tan_arg)) = extract_scaled_trig_squared(rhs, "tan") {
+        if expressions_match(&tan_coeff, lhs) {
+            return Some(build_scaled_term(tan_coeff, trig_squared("sec", tan_arg)));
+        }
+    }
+
+    if let Some((cot_coeff, cot_arg)) = extract_scaled_trig_squared(lhs, "cot") {
+        if expressions_match(&cot_coeff, rhs) {
+            return Some(build_scaled_term(cot_coeff, trig_squared("csc", cot_arg)));
+        }
+    }
+
+    if let Some((cot_coeff, cot_arg)) = extract_scaled_trig_squared(rhs, "cot") {
+        if expressions_match(&cot_coeff, lhs) {
+            return Some(build_scaled_term(cot_coeff, trig_squared("csc", cot_arg)));
+        }
+    }
+
+    if let (Some((sec_coeff, sec_arg)), Some((tan_coeff, tan_arg))) = (
+        extract_scaled_trig_squared(lhs, "sec"),
+        extract_scaled_trig_squared(rhs, "tan"),
+    ) {
+        if sec_arg == tan_arg && expressions_are_negations(&sec_coeff, &tan_coeff) {
+            return Some(sec_coeff);
+        }
+    }
+
+    if let (Some((tan_coeff, tan_arg)), Some((sec_coeff, sec_arg))) = (
+        extract_scaled_trig_squared(lhs, "tan"),
+        extract_scaled_trig_squared(rhs, "sec"),
+    ) {
+        if sec_arg == tan_arg && expressions_are_negations(&sec_coeff, &tan_coeff) {
+            return Some(sec_coeff);
+        }
+    }
+
+    if let (Some((csc_coeff, csc_arg)), Some((cot_coeff, cot_arg))) = (
+        extract_scaled_trig_squared(lhs, "csc"),
+        extract_scaled_trig_squared(rhs, "cot"),
+    ) {
+        if csc_arg == cot_arg && expressions_are_negations(&csc_coeff, &cot_coeff) {
+            return Some(csc_coeff);
+        }
+    }
+
+    if let (Some((cot_coeff, cot_arg)), Some((csc_coeff, csc_arg))) = (
+        extract_scaled_trig_squared(lhs, "cot"),
+        extract_scaled_trig_squared(rhs, "csc"),
+    ) {
+        if csc_arg == cot_arg && expressions_are_negations(&csc_coeff, &cot_coeff) {
+            return Some(csc_coeff);
+        }
+    }
+
+    if let Some((sec_coeff, sec_arg)) = extract_scaled_trig_squared(lhs, "sec") {
+        if expressions_are_negations(&sec_coeff, rhs) {
+            return Some(build_scaled_term(sec_coeff, trig_squared("tan", sec_arg)));
+        }
+    }
+
+    if let Some((sec_coeff, sec_arg)) = extract_scaled_trig_squared(rhs, "sec") {
+        if expressions_are_negations(&sec_coeff, lhs) {
+            return Some(build_scaled_term(sec_coeff, trig_squared("tan", sec_arg)));
+        }
+    }
+
+    if let Some((csc_coeff, csc_arg)) = extract_scaled_trig_squared(lhs, "csc") {
+        if expressions_are_negations(&csc_coeff, rhs) {
+            return Some(build_scaled_term(csc_coeff, trig_squared("cot", csc_arg)));
+        }
+    }
+
+    if let Some((csc_coeff, csc_arg)) = extract_scaled_trig_squared(rhs, "csc") {
+        if expressions_are_negations(&csc_coeff, lhs) {
+            return Some(build_scaled_term(csc_coeff, trig_squared("cot", csc_arg)));
+        }
+    }
+
+    if let Some((sin_coeff, sin_arg)) = extract_scaled_trig_squared(lhs, "sin") {
+        if expressions_are_negations(&sin_coeff, rhs) {
+            return Some(build_scaled_term(rhs.clone(), trig_squared("cos", sin_arg)));
+        }
+    }
+
+    if let Some((sin_coeff, sin_arg)) = extract_scaled_trig_squared(rhs, "sin") {
+        if expressions_are_negations(&sin_coeff, lhs) {
+            return Some(build_scaled_term(lhs.clone(), trig_squared("cos", sin_arg)));
+        }
+    }
+
+    if let Some((cos_coeff, cos_arg)) = extract_scaled_trig_squared(lhs, "cos") {
+        if expressions_are_negations(&cos_coeff, rhs) {
+            return Some(build_scaled_term(rhs.clone(), trig_squared("sin", cos_arg)));
+        }
+    }
+
+    if let Some((cos_coeff, cos_arg)) = extract_scaled_trig_squared(rhs, "cos") {
+        if expressions_are_negations(&cos_coeff, lhs) {
+            return Some(build_scaled_term(lhs.clone(), trig_squared("sin", cos_arg)));
+        }
+    }
+
+    None
+}
+
+fn try_trig_identity_pair(lhs: &Expression, rhs: &Expression) -> Option<Expression> {
+    if let Some(result) = try_direct_trig_identity_pair(lhs, rhs) {
+        return Some(result);
+    }
+
+    let (common_factors, lhs_remainder, rhs_remainder) =
+        extract_common_commutative_factors(lhs, rhs)?;
+    let reduced = try_trig_identity_pair(&lhs_remainder, &rhs_remainder)?;
+
+    let mut result_factors = common_factors;
+    result_factors.push(reduced);
+    Some(build_expression_from_factors(result_factors))
+}
+
+fn check_pythagorean(terms: &[Expression]) -> Option<Vec<Expression>> {
+    for (i, lhs) in terms.iter().enumerate() {
+        for (j, rhs) in terms.iter().enumerate() {
+            if i >= j {
+                continue;
+            }
+
+            if let Some(replacement) = try_trig_identity_pair(lhs, rhs) {
+                let mut remaining: Vec<_> = terms
+                    .iter()
+                    .enumerate()
+                    .filter(|(k, _)| *k != i && *k != j)
+                    .map(|(_, expr)| expr.clone())
+                    .collect();
+                remaining.push(replacement);
+                return Some(remaining);
+            }
+        }
+    }
+
     None
 }
 
@@ -193,7 +434,14 @@ pub fn simplify_addition(terms: &[Expression]) -> Expression {
             match num {
                 Expression::Number(Number::Integer(0)) => simplified_non_numeric,
                 Expression::Number(Number::Float(f)) if f.abs() < EPSILON => simplified_non_numeric,
-                _ => Expression::Add(Arc::new(vec![num.clone(), simplified_non_numeric])),
+                _ => {
+                    let candidate_terms = vec![num.clone(), simplified_non_numeric.clone()];
+                    if let Some(pythagorean_terms) = check_pythagorean(&candidate_terms) {
+                        simplify_addition(&pythagorean_terms)
+                    } else {
+                        Expression::Add(Arc::new(candidate_terms))
+                    }
+                }
             }
         }
         _ => {
@@ -637,6 +885,63 @@ mod tests {
             Expression::Add(_) => {}
             _ => panic!("Expected Add (unchanged), got {:?}", simplified),
         }
+    }
+
+    #[test]
+    fn test_pythagorean_identity_with_numeric_coefficient() {
+        let expr = expr!((2 * ((sin(x)) ^ 2)) + (2 * ((cos(x)) ^ 2)));
+        let simplified = expr.simplify();
+
+        assert_eq!(simplified, expr!(2));
+    }
+
+    #[test]
+    fn test_pythagorean_identity_with_symbolic_coefficient() {
+        let expr = expr!((a * ((sin(x)) ^ 2)) + (a * ((cos(x)) ^ 2)));
+        let simplified = expr.simplify();
+
+        assert_eq!(simplified, expr!(a));
+    }
+
+    #[test]
+    fn test_tan_squared_plus_one_to_sec_squared() {
+        let expr = expr!(((tan(x)) ^ 2) + 1);
+        let simplified = expr.simplify();
+
+        assert_eq!(simplified, expr!((sec(x)) ^ 2));
+    }
+
+    #[test]
+    fn test_sec_squared_minus_tan_squared_to_one() {
+        let expr = expr!(((sec(x)) ^ 2) - ((tan(x)) ^ 2));
+        let simplified = expr.simplify();
+
+        assert_eq!(simplified, expr!(1));
+    }
+
+    #[test]
+    fn test_one_minus_sin_squared_to_cos_squared() {
+        let expr = expr!(1 - ((sin(x)) ^ 2));
+        let simplified = expr.simplify();
+
+        assert_eq!(simplified, expr!((cos(x)) ^ 2));
+    }
+
+    #[test]
+    fn test_csc_squared_minus_one_to_cot_squared_with_symbolic_coefficient() {
+        let expr = expr!((a * ((csc(x)) ^ 2)) - a);
+        let simplified = expr.simplify();
+
+        assert_eq!(simplified, expr!(a * ((cot(x)) ^ 2)));
+    }
+
+    #[test]
+    fn test_common_factor_exposes_pythagorean_identity() {
+        let expr =
+            expr!((2 * x * ((cos(y)) ^ 2) * cos(z) * sin(z)) + (2 * x * ((sin(y)) ^ 2) * cos(z) * sin(z)));
+        let simplified = expr.simplify();
+
+        assert_eq!(simplified, expr!(2 * x * cos(z) * sin(z)));
     }
 
     #[test]

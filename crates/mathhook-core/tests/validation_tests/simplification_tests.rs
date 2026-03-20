@@ -118,6 +118,41 @@ fn test_simplify_cos_zero() {
 }
 
 #[test]
+fn test_simplify_trig_pythagorean_with_symbolic_coefficient() {
+    let expr = expr!((a * ((sin(x)) ^ 2)) + (a * ((cos(x)) ^ 2)));
+    let result = expr.simplify();
+    assert_eq!(result, expr!(a));
+}
+
+#[test]
+fn test_simplify_tan_squared_plus_one() {
+    let expr = expr!(((tan(x)) ^ 2) + 1);
+    let result = expr.simplify();
+    assert_eq!(result, expr!((sec(x)) ^ 2));
+}
+
+#[test]
+fn test_simplify_negative_trig_arguments() {
+    assert_eq!(expr!(sin(-x)).simplify(), expr!(-(sin(x))));
+    assert_eq!(expr!(cos(-x)).simplify(), expr!(cos(x)));
+    assert_eq!(expr!(tan(-x)).simplify(), expr!(-(tan(x))));
+}
+
+#[test]
+fn test_simplify_trig_inverse_compositions() {
+    assert_eq!(expr!(sin(asin(x))).simplify(), expr!(x));
+    assert_eq!(expr!(cos(acos(x))).simplify(), expr!(x));
+    assert_eq!(expr!(tan(atan(x))).simplify(), expr!(x));
+}
+
+#[test]
+fn test_simplify_common_factor_with_buried_pythagorean_identity() {
+    let expr =
+        expr!((2 * x * ((cos(y)) ^ 2) * cos(z) * sin(z)) + (2 * x * ((sin(y)) ^ 2) * cos(z) * sin(z)));
+    assert_eq!(expr.simplify(), expr!(2 * x * cos(z) * sin(z)));
+}
+
+#[test]
 fn test_simplify_exp_zero() {
     // SymPy: simplify(exp(0)) = 1
     let expr = function!(exp, expr!(0));

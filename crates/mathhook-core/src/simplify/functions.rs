@@ -8,6 +8,7 @@
 //! Uses Function Intelligence System for automatic evaluation of all registered functions.
 //! Hardcoded special cases remain for performance-critical elementary functions.
 
+use crate::algebra::get_simplification_registry;
 use super::Simplify;
 use crate::core::expression::evaluation::evaluate_function_dispatch;
 use crate::core::{Expression, Number};
@@ -62,6 +63,12 @@ pub fn simplify_function(name: &str, args: &[Expression]) -> Expression {
                 return inner_args[0].clone();
             }
         }
+    }
+
+    let symbolic_form = Expression::function(name, simplified_args.clone());
+    let registry_result = get_simplification_registry().simplify_function(name, &simplified_args);
+    if registry_result != symbolic_form {
+        return registry_result.simplify();
     }
 
     // Determine if we should keep the expression symbolic
@@ -251,5 +258,19 @@ mod tests {
             }
             _ => panic!("Expected Function(sin, [1]), got {:?}", result),
         }
+    }
+
+    #[test]
+    fn test_registry_simplifies_negative_trig_arguments() {
+        assert_eq!(simplify_function("sin", &[expr!(-x)]), expr!(-(sin(x))));
+        assert_eq!(simplify_function("cos", &[expr!(-x)]), expr!(cos(x)));
+        assert_eq!(simplify_function("tan", &[expr!(-x)]), expr!(-(tan(x))));
+    }
+
+    #[test]
+    fn test_registry_simplifies_trig_inverse_compositions() {
+        assert_eq!(simplify_function("sin", &[expr!(asin(x))]), expr!(x));
+        assert_eq!(simplify_function("cos", &[expr!(acos(x))]), expr!(x));
+        assert_eq!(simplify_function("tan", &[expr!(atan(x))]), expr!(x));
     }
 }
