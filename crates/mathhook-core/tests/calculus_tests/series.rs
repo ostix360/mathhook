@@ -92,7 +92,21 @@ fn test_maclaurin_sinh() {
     let x = symbol!(x);
     // sinh(x) = x + x^3/3! + x^5/5! + ...
     let f = Expression::function("sinh", vec![Expression::symbol(x.clone())]);
-    let _series = f.maclaurin_series(&x, 5);
+    let series = f.maclaurin_series(&x, 5);
+
+    let expected = Expression::add_without_factoring(vec![
+        Expression::symbol(x.clone()),
+        Expression::mul(vec![
+            Expression::rational(1, 6),
+            Expression::pow(Expression::symbol(x.clone()), Expression::integer(3)),
+        ]),
+        Expression::mul(vec![
+            Expression::rational(1, 120),
+            Expression::pow(Expression::symbol(x.clone()), Expression::integer(5)),
+        ]),
+    ]);
+
+    assert_eq!(series, expected);
 }
 
 #[test]
@@ -100,7 +114,21 @@ fn test_maclaurin_cosh() {
     let x = symbol!(x);
     // cosh(x) = 1 + x^2/2! + x^4/4! + ...
     let f = Expression::function("cosh", vec![Expression::symbol(x.clone())]);
-    let _series = f.maclaurin_series(&x, 4);
+    let series = f.maclaurin_series(&x, 4);
+
+    let expected = Expression::add_without_factoring(vec![
+        Expression::integer(1),
+        Expression::mul(vec![
+            Expression::rational(1, 2),
+            Expression::pow(Expression::symbol(x.clone()), Expression::integer(2)),
+        ]),
+        Expression::mul(vec![
+            Expression::rational(1, 24),
+            Expression::pow(Expression::symbol(x.clone()), Expression::integer(4)),
+        ]),
+    ]);
+
+    assert_eq!(series, expected);
 }
 
 #[test]

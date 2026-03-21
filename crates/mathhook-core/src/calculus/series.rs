@@ -153,7 +153,7 @@ impl SeriesMethods {
                     .simplify();
                     terms.push(term);
                 }
-                Some(Expression::add(terms))
+                Some(Expression::add_without_factoring(terms))
             }
             "sin" if point.is_zero() => {
                 // sin(x) = x - x³/3! + x⁵/5! - x⁷/7! + ...
@@ -176,7 +176,7 @@ impl SeriesMethods {
                     .simplify();
                     terms.push(term);
                 }
-                Some(Expression::add(terms))
+                Some(Expression::add_without_factoring(terms))
             }
             "cos" if point.is_zero() => {
                 // cos(x) = 1 - x²/2! + x⁴/4! - x⁶/6! + ...
@@ -203,7 +203,57 @@ impl SeriesMethods {
                     };
                     terms.push(term);
                 }
-                Some(Expression::add(terms))
+                Some(Expression::add_without_factoring(terms))
+            }
+            "sinh" if point.is_zero() => {
+                // sinh(x) = x + x³/3! + x⁵/5! + ...
+                let mut terms = Vec::new();
+                for n in 0..=order {
+                    let power = 2 * n + 1;
+                    if power > order {
+                        break;
+                    }
+
+                    let term = if power == 1 {
+                        Expression::symbol(variable.clone())
+                    } else {
+                        Expression::mul(vec![
+                            Expression::pow(
+                                Expression::symbol(variable.clone()),
+                                Expression::integer(power as i64),
+                            ),
+                            Expression::pow(Self::factorial(power), Expression::integer(-1)),
+                        ])
+                        .simplify()
+                    };
+                    terms.push(term);
+                }
+                Some(Expression::add_without_factoring(terms))
+            }
+            "cosh" if point.is_zero() => {
+                // cosh(x) = 1 + x²/2! + x⁴/4! + ...
+                let mut terms = Vec::new();
+                for n in 0..=order {
+                    let power = 2 * n;
+                    if power > order {
+                        break;
+                    }
+
+                    let term = if power == 0 {
+                        Expression::integer(1)
+                    } else {
+                        Expression::mul(vec![
+                            Expression::pow(
+                                Expression::symbol(variable.clone()),
+                                Expression::integer(power as i64),
+                            ),
+                            Expression::pow(Self::factorial(power), Expression::integer(-1)),
+                        ])
+                        .simplify()
+                    };
+                    terms.push(term);
+                }
+                Some(Expression::add_without_factoring(terms))
             }
             "ln" if *point == Expression::integer(1) => {
                 // ln(1+x) = x - x²/2 + x³/3 - x⁴/4 + ...
