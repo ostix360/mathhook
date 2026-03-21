@@ -1,5 +1,6 @@
 //! Polynomial expansion operation tests
 
+use mathhook_core::algebra::Expand;
 use mathhook_core::prelude::*;
 
 #[test]
@@ -159,4 +160,22 @@ fn test_nested_expansion() {
     println!("(x + 1)(x^2 + x + 1) = {}", result);
 
     assert!(!result.is_zero());
+}
+
+#[test]
+fn test_expand_preserves_developed_sum() {
+    let x = symbol!(x);
+
+    let expr = Expression::mul(vec![
+        Expression::integer(2),
+        Expression::add(vec![Expression::symbol(x.clone()), Expression::integer(3)]),
+    ]);
+
+    let expanded = expr.expand();
+    let expected = Expression::add_without_factoring(vec![
+        Expression::mul(vec![Expression::integer(2), Expression::symbol(x.clone())]),
+        Expression::integer(6),
+    ]);
+
+    assert_eq!(expanded, expected);
 }

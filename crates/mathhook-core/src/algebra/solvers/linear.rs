@@ -90,23 +90,25 @@ impl EquationSolver for LinearSolver {
             return matrix_solver.solve(&equation_expr, variable);
         }
 
-        // Simplify and expand equation to flatten nested structures and distribute multiplication
-        let simplified_equation = equation_expr.simplify().expand();
+        // Use expanded form for coefficient extraction; full simplification may refactor
+        // a linear sum into a product, which is the wrong normal form for this solver.
+        let expanded_equation = equation_expr.expand();
+        let reduced_equation = expanded_equation.simplify();
 
         // Check for identity equations (0 = 0) or contradictions AFTER simplification
-        if simplified_equation.is_zero() {
+        if reduced_equation.is_zero() {
             // If equation simplified to just 0, it means 0 = 0 (infinite solutions)
             return SolverResult::InfiniteSolutions;
         }
         // Check for non-zero constant (contradiction)
-        if let Expression::Number(Number::Integer(n)) = simplified_equation {
+        if let Expression::Number(Number::Integer(n)) = reduced_equation {
             if n != 0 {
                 return SolverResult::NoSolution;
             }
         }
 
         // Check for factored form: (x - a)(x - b)...(x - n) = 0
-        if let Some(roots) = self.extract_factored_roots(&simplified_equation, variable) {
+        if let Some(roots) = self.extract_factored_roots(&reduced_equation, variable) {
             if roots.len() == 1 {
                 return SolverResult::Single(roots[0].clone());
             } else if roots.len() > 1 {
@@ -114,8 +116,8 @@ impl EquationSolver for LinearSolver {
             }
         }
 
-        // Extract coefficients from simplified linear equation
-        let (a, b) = self.extract_linear_coefficients(&simplified_equation, variable);
+        // Extract coefficients from the developed linear equation.
+        let (a, b) = self.extract_linear_coefficients(&expanded_equation, variable);
 
         // Smart solver: Analyze original equation structure before simplification
 
@@ -180,8 +182,8 @@ impl EquationSolver for LinearSolver {
         equation: &Expression,
         variable: &Symbol,
     ) -> (SolverResult, StepByStepExplanation) {
-        let simplified_equation = equation.simplify();
-        let (a, b) = self.extract_linear_coefficients(&simplified_equation, variable);
+        let expanded_equation = equation.expand();
+        let (a, b) = self.extract_linear_coefficients(&expanded_equation, variable);
 
         if a.is_zero() {
             return self.handle_special_case_with_style(&b);

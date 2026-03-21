@@ -150,9 +150,7 @@ fn test_log_power_rule() {
         function!(log, expr!(x ^ n)),
         Expression::mul(vec![Expression::integer(-1), expr!(n * (log(x)))]),
     ]);
-    // Note: expand_log not yet implemented, test structure only
-    let result_str = format!("{:?}", expr);
-    assert!(result_str.contains("log"));
+    assert_eq!(expr.simplify(), expr!(0));
 }
 
 #[test]

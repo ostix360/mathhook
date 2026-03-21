@@ -9,7 +9,7 @@ mod matrix_ops;
 mod multiplication;
 mod power;
 
-pub use addition::simplify_addition;
+pub use addition::{simplify_addition, simplify_addition_without_factoring};
 pub use matrix_ops::{try_matrix_add, try_matrix_multiply};
 pub use multiplication::simplify_multiplication;
 pub use power::simplify_power;

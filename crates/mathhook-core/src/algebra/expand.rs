@@ -18,7 +18,7 @@ impl Expand for Expression {
             Expression::Add(terms) => {
                 let expanded_terms: Vec<Expression> =
                     terms.iter().map(|term| term.expand()).collect();
-                Expression::add(expanded_terms)
+                Expression::add_without_factoring(expanded_terms)
             }
 
             Expression::Mul(factors) => self.expand_multiplication(factors),
@@ -62,7 +62,7 @@ impl Expression {
                     .iter()
                     .map(|term| term.distribute_multiply(right))
                     .collect();
-                Expression::add(distributed_terms)
+                Expression::add_without_factoring(distributed_terms)
             }
 
             (_, Expression::Add(right_terms)) => {
@@ -70,7 +70,7 @@ impl Expression {
                     .iter()
                     .map(|term| self.distribute_multiply(term))
                     .collect();
-                Expression::add(distributed_terms)
+                Expression::add_without_factoring(distributed_terms)
             }
 
             _ => Expression::mul(vec![self.clone(), right.clone()]),
@@ -107,14 +107,14 @@ impl Expression {
                         Commutativity::combine(terms.iter().map(|t| t.commutativity()));
 
                     if commutativity.can_sort() {
-                        Expression::add(vec![
+                        Expression::add_without_factoring(vec![
                             Expression::pow(a.clone(), Expression::integer(2)).expand(),
                             Expression::mul(vec![Expression::integer(2), a.clone(), b.clone()])
                                 .expand(),
                             Expression::pow(b.clone(), Expression::integer(2)).expand(),
                         ])
                     } else {
-                        Expression::add(vec![
+                        Expression::add_without_factoring(vec![
                             Expression::pow(a.clone(), Expression::integer(2)).expand(),
                             Expression::mul(vec![a.clone(), b.clone()]).expand(),
                             Expression::mul(vec![b.clone(), a.clone()]).expand(),
@@ -150,13 +150,13 @@ impl Expression {
         }
 
         if n == 1 {
-            return Expression::add(vec![a.clone(), b.clone()]);
+            return Expression::add_without_factoring(vec![a.clone(), b.clone()]);
         }
 
         let commutativity = Commutativity::combine(vec![a.commutativity(), b.commutativity()]);
 
         if !commutativity.can_sort() {
-            let base = Expression::add(vec![a.clone(), b.clone()]);
+            let base = Expression::add_without_factoring(vec![a.clone(), b.clone()]);
             let mut result = base.clone();
             for _ in 1..n {
                 result = result.distribute_multiply(&base);
@@ -185,10 +185,10 @@ impl Expression {
                 terms.push(term);
             }
 
-            Expression::add(terms)
+            Expression::add_without_factoring(terms)
         } else {
             Expression::pow(
-                Expression::add(vec![a.clone(), b.clone()]),
+                Expression::add_without_factoring(vec![a.clone(), b.clone()]),
                 Expression::integer(n as i64),
             )
         }

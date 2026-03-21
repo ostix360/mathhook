@@ -220,7 +220,7 @@ impl SeriesMethods {
                     ]);
                     terms.push(term);
                 }
-                Some(Expression::add(terms))
+                Some(Expression::add_without_factoring(terms))
             }
             _ => None,
         }
@@ -249,7 +249,7 @@ impl SeriesMethods {
             let x_minus_a = if point.is_zero() {
                 Expression::symbol(variable.clone())
             } else {
-                Expression::add(vec![
+                Expression::add_without_factoring(vec![
                     Expression::symbol(variable.clone()),
                     Expression::mul(vec![Expression::integer(-1), point.clone()]),
                 ])
@@ -270,7 +270,7 @@ impl SeriesMethods {
             terms.push(term);
         }
 
-        Expression::add(terms).simplify()
+        Expression::add_without_factoring(terms).simplify()
     }
 
     /// Evaluate expression at a specific point
@@ -292,7 +292,7 @@ impl SeriesMethods {
                     .iter()
                     .map(|term| Self::evaluate_at_point(term, variable, point))
                     .collect();
-                Expression::add(evaluated).simplify()
+                Expression::add_without_factoring(evaluated).simplify()
             }
             Expression::Mul(factors) => {
                 let evaluated: Vec<Expression> = factors

@@ -9,6 +9,7 @@ use crate::calculus::pde::EducationalPDESolver;
 use crate::core::symbol::SymbolType;
 use crate::core::{Expression, Number, Symbol};
 use crate::educational::step_by_step::{Step, StepByStepExplanation};
+use crate::Simplify;
 
 /// Types of equations our system can handle
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -308,8 +309,18 @@ impl SmartEquationSolver {
     ) -> (SolverResult, StepByStepExplanation) {
         let mut all_steps = Vec::new();
 
+        let mut equation = &equation.simplify();
+        if let Expression::Mul(eq) = equation {
+            if eq.len() == 2{
+                if let Expression::Add(_) = &eq[1] {
+                    equation = &eq[1]
+                }
+            }
+        }
+
         let degree = EquationAnalyzer::find_highest_degree(equation, variable);
         let eq_type = EquationAnalyzer::analyze(equation, variable);
+
 
         let analysis_description = match eq_type {
             EquationType::Constant => {

@@ -8,8 +8,8 @@
 //! Uses Function Intelligence System for automatic evaluation of all registered functions.
 //! Hardcoded special cases remain for performance-critical elementary functions.
 
-use crate::algebra::get_simplification_registry;
 use super::Simplify;
+use crate::algebra::get_simplification_registry;
 use crate::core::expression::evaluation::evaluate_function_dispatch;
 use crate::core::{Expression, Number};
 

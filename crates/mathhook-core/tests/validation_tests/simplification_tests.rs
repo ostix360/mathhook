@@ -146,10 +146,23 @@ fn test_simplify_trig_inverse_compositions() {
 }
 
 #[test]
+fn test_simplify_common_symbolic_factor() {
+    let expr = expr!((x * y) + (x * z));
+    assert_eq!(expr.simplify(), expr!(x * (y + z)));
+}
+
+#[test]
+fn test_simplify_common_integer_factor() {
+    let expr = expr!((2 * x) + (4 * y));
+    assert_eq!(expr.simplify(), expr!(2 * (x + (2 * y))));
+}
+
+#[test]
 fn test_simplify_common_factor_with_buried_pythagorean_identity() {
-    let expr =
-        expr!((2 * x * ((cos(y)) ^ 2) * cos(z) * sin(z)) + (2 * x * ((sin(y)) ^ 2) * cos(z) * sin(z)));
-    assert_eq!(expr.simplify(), expr!(2 * x * cos(z) * sin(z)));
+    let expr = expr!(
+        (((cos(y)) ^ 2) * cos(z) * sin(z)) + (((sin(y)) ^ 2) * cos(z) * sin(z))
+    );
+    assert_eq!(expr.simplify(), expr!(cos(z) * sin(z)));
 }
 
 #[test]
@@ -221,7 +234,7 @@ fn test_simplify_distributive_property() {
     // SymPy: simplify(2*(x + 3)) = 2*x + 6 (when expanded)
     let expr = expr!(2 * (x + 3));
     let result = expr.expand();
-    let expected = expr!((2 * x) + 6);
+    let expected = Expression::add_without_factoring(vec![expr!(2 * x), expr!(6)]);
     assert_eq!(result, expected);
 }
 

@@ -6,8 +6,8 @@ use crate::core::commutativity::Commutativity;
 use crate::core::{Expression, Number};
 use num_bigint::BigInt;
 use num_rational::BigRational;
-use std::sync::Arc;
 use num_traits::Pow;
+use std::sync::Arc;
 
 /// Power simplification
 pub fn simplify_power(base: &Expression, exp: &Expression) -> Expression {
@@ -29,10 +29,11 @@ pub fn simplify_power(base: &Expression, exp: &Expression) -> Expression {
         }
         // x^n
         (Expression::Number(Number::Float(base)), Expression::Number(Number::Integer(n)))
-        if *n > 0 && (*base).is_finite() && !(*base).is_nan() => {
+            if *n > 0 && (*base).is_finite() && !(*base).is_nan() =>
+        {
             if let Some(exp) = i32::try_from(*n).ok() {
                 Expression::float((*base).powi(exp))
-            }else {
+            } else {
                 Expression::float((*base).powf(*n as f64))
             }
         }

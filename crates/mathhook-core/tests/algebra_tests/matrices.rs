@@ -432,12 +432,18 @@ fn test_matrix_is_symmetric() {
 }
 
 #[test]
-fn test_symmetric_matrix(){
-    let symmetric = unified::Matrix::symmetric(3, vec![
-        Expression::integer(1), // (0,0)
-        Expression::integer(2), Expression::integer(4), // (1,0), (1,1)
-        Expression::integer(3), Expression::integer(5), Expression::integer(6) // (2,0), (2,1), (2,2)
-    ]);
+fn test_symmetric_matrix() {
+    let symmetric = unified::Matrix::symmetric(
+        3,
+        vec![
+            Expression::integer(1), // (0,0)
+            Expression::integer(2),
+            Expression::integer(4), // (1,0), (1,1)
+            Expression::integer(3),
+            Expression::integer(5),
+            Expression::integer(6), // (2,0), (2,1), (2,2)
+        ],
+    );
     assert_eq!(symmetric.get_element(0, 0), Expression::integer(1));
     assert_eq!(symmetric.get_element(0, 1), Expression::integer(2));
     assert_eq!(symmetric.get_element(0, 2), Expression::integer(3));
@@ -447,7 +453,6 @@ fn test_symmetric_matrix(){
     assert_eq!(symmetric.get_element(2, 0), Expression::integer(3));
     assert_eq!(symmetric.get_element(2, 1), Expression::integer(5));
     assert_eq!(symmetric.get_element(2, 2), Expression::integer(6));
-
 }
 
 #[test]

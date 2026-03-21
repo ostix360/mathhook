@@ -193,11 +193,14 @@ impl Expression {
                     let size = m.dimensions().0;
                     let mut new_elements = Vec::with_capacity(size * size / 2 + size);
                     for i in 0..size {
-                        for j in 0..i{
+                        for j in 0..i {
                             new_elements.push(m.get_element(i, j).substitute(substitutions));
                         }
                     }
-                    Expression::Matrix(Arc::new(crate::matrices::unified::Matrix::symmetric(size, new_elements)))
+                    Expression::Matrix(Arc::new(crate::matrices::unified::Matrix::symmetric(
+                        size,
+                        new_elements,
+                    )))
                 } else {
                     let (i_bound, j_bound) = m.dimensions();
                     let mut rows = Vec::with_capacity(i_bound);
@@ -210,7 +213,7 @@ impl Expression {
                     }
                     Expression::Matrix(Arc::new(crate::matrices::unified::Matrix::dense(rows)))
                 }
-            },
+            }
         }
     }
 

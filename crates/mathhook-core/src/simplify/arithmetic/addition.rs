@@ -56,7 +56,10 @@ fn extract_scaled_trig_squared(expr: &Expression, func: &str) -> Option<(Express
 }
 
 fn trig_squared(func: &str, arg: Expression) -> Expression {
-    Expression::pow(Expression::function(func, vec![arg]), Expression::integer(2))
+    Expression::pow(
+        Expression::function(func, vec![arg]),
+        Expression::integer(2),
+    )
 }
 
 fn build_scaled_term(coeff: Expression, base: Expression) -> Expression {
@@ -122,7 +125,10 @@ fn extract_common_commutative_factors(
     }
 
     for common_factor in &common_factors {
-        if let Some(index) = lhs_factors.iter().position(|factor| factor == common_factor) {
+        if let Some(index) = lhs_factors
+            .iter()
+            .position(|factor| factor == common_factor)
+        {
             lhs_factors.remove(index);
         }
     }
@@ -139,6 +145,131 @@ fn extract_common_commutative_factors(
         build_expression_from_factors(lhs_factors),
         build_expression_from_factors(rhs_remaining),
     ))
+}
+
+fn gcd_i64(mut lhs: i64, mut rhs: i64) -> i64 {
+    lhs = lhs.abs();
+    rhs = rhs.abs();
+
+    while rhs != 0 {
+        let remainder = lhs % rhs;
+        lhs = rhs;
+        rhs = remainder;
+    }
+
+    lhs
+}
+
+fn extract_factorable_term(expr: &Expression) -> Option<(i64, Vec<Expression>)> {
+    if !expr.commutativity().can_sort() {
+        return None;
+    }
+
+    match expr {
+        Expression::Number(Number::Integer(value)) => Some((*value, Vec::new())),
+        Expression::Mul(factors)
+            if matches!(
+                factors.first(),
+                Some(Expression::Number(Number::Integer(_)))
+            ) =>
+        {
+            let coeff = match &factors[0] {
+                Expression::Number(Number::Integer(value)) => *value,
+                _ => unreachable!(),
+            };
+            Some((coeff, factors[1..].to_vec()))
+        }
+        Expression::Mul(factors) => Some((1, factors.iter().cloned().collect())),
+        _ => Some((1, vec![expr.clone()])),
+    }
+}
+
+fn intersect_factor_lists(lhs: &[Expression], rhs: &[Expression]) -> Vec<Expression> {
+    let mut rhs_used = vec![false; rhs.len()];
+    let mut intersection = Vec::new();
+
+    for lhs_factor in lhs {
+        if let Some((index, _)) = rhs
+            .iter()
+            .enumerate()
+            .find(|(index, rhs_factor)| !rhs_used[*index] && *rhs_factor == lhs_factor)
+        {
+            rhs_used[index] = true;
+            intersection.push(lhs_factor.clone());
+        }
+    }
+
+    intersection
+}
+
+fn remove_factor_list(mut factors: Vec<Expression>, to_remove: &[Expression]) -> Vec<Expression> {
+    for factor in to_remove {
+        if let Some(index) = factors.iter().position(|candidate| candidate == factor) {
+            factors.remove(index);
+        }
+    }
+
+    factors
+}
+
+fn try_factor_common_terms(terms: &[Expression]) -> Option<Expression> {
+    if terms.len() < 2 {
+        return None;
+    }
+
+    let decomposed_terms: Vec<_> = terms
+        .iter()
+        .map(extract_factorable_term)
+        .collect::<Option<_>>()?;
+
+    let mut common_symbolic_factors = decomposed_terms[0].1.clone();
+    for (_, factors) in decomposed_terms.iter().skip(1) {
+        common_symbolic_factors = intersect_factor_lists(&common_symbolic_factors, factors);
+        if common_symbolic_factors.is_empty() {
+            break;
+        }
+    }
+
+    let numeric_gcd = decomposed_terms
+        .iter()
+        .map(|(coeff, _)| *coeff)
+        .reduce(gcd_i64)
+        .unwrap_or(1);
+    let has_numeric_common = numeric_gcd > 1;
+
+    if !has_numeric_common && common_symbolic_factors.is_empty() {
+        return None;
+    }
+
+    let mut common_factor_parts = Vec::new();
+    if has_numeric_common {
+        common_factor_parts.push(Expression::integer(numeric_gcd));
+    }
+    common_factor_parts.extend(common_symbolic_factors.iter().cloned());
+
+    let common_factor = build_expression_from_factors(common_factor_parts);
+    let remainder_terms: Vec<_> = decomposed_terms
+        .into_iter()
+        .map(|(coeff, factors)| {
+            let reduced_coeff = if has_numeric_common {
+                coeff / numeric_gcd
+            } else {
+                coeff
+            };
+            let remaining_factors = remove_factor_list(factors, &common_symbolic_factors);
+
+            let mut rebuilt_parts = Vec::new();
+            if reduced_coeff != 1 || remaining_factors.is_empty() {
+                rebuilt_parts.push(Expression::integer(reduced_coeff));
+            }
+            rebuilt_parts.extend(remaining_factors);
+
+            build_expression_from_factors(rebuilt_parts)
+        })
+        .collect();
+
+    let reduced_sum = simplify_addition_with_options(&remainder_terms, true);
+    Some(simplify_multiplication(&[common_factor, reduced_sum]))
 }
 
 fn try_direct_trig_identity_pair(lhs: &Expression, rhs: &Expression) -> Option<Expression> {
@@ -278,6 +409,9 @@ fn try_trig_identity_pair(lhs: &Expression, rhs: &Expression) -> Option<Expressi
 
     let (common_factors, lhs_remainder, rhs_remainder) =
         extract_common_commutative_factors(lhs, rhs)?;
+    if lhs_remainder == Expression::integer(1) && rhs_remainder == Expression::integer(1) {
+        return None;
+    }
     let reduced = try_trig_identity_pair(&lhs_remainder, &rhs_remainder)?;
 
     let mut result_factors = common_factors;
@@ -309,7 +443,10 @@ fn check_pythagorean(terms: &[Expression]) -> Option<Vec<Expression>> {
 }
 
 /// Simplify addition expressions with minimal overhead
-pub fn simplify_addition(terms: &[Expression]) -> Expression {
+pub fn simplify_addition_with_options(
+    terms: &[Expression],
+    factor_common_terms: bool,
+) -> Expression {
     if terms.is_empty() {
         return Expression::integer(0);
     }
@@ -436,8 +573,13 @@ pub fn simplify_addition(terms: &[Expression]) -> Expression {
                 Expression::Number(Number::Float(f)) if f.abs() < EPSILON => simplified_non_numeric,
                 _ => {
                     let candidate_terms = vec![num.clone(), simplified_non_numeric.clone()];
+                    if factor_common_terms {
+                        if let Some(factored) = try_factor_common_terms(&candidate_terms) {
+                            return factored;
+                        }
+                    }
                     if let Some(pythagorean_terms) = check_pythagorean(&candidate_terms) {
-                        simplify_addition(&pythagorean_terms)
+                        simplify_addition_with_options(&pythagorean_terms, factor_common_terms)
                     } else {
                         Expression::Add(Arc::new(candidate_terms))
                     }
@@ -497,7 +639,7 @@ pub fn simplify_addition(terms: &[Expression]) -> Expression {
                         }
                     }
                 } else {
-                    let coeff_sum = simplify_addition(&coeffs);
+                    let coeff_sum = simplify_addition_with_options(&coeffs, factor_common_terms);
                     match coeff_sum {
                         Expression::Number(Number::Integer(0)) => {}
                         Expression::Number(Number::Float(0.0)) => {}
@@ -511,8 +653,14 @@ pub fn simplify_addition(terms: &[Expression]) -> Expression {
                 }
             }
 
+            if factor_common_terms {
+                if let Some(factored) = try_factor_common_terms(&result_terms) {
+                    return factored;
+                }
+            }
+
             if let Some(pythagorean_terms) = check_pythagorean(&result_terms) {
-                return simplify_addition(&pythagorean_terms);
+                return simplify_addition_with_options(&pythagorean_terms, factor_common_terms);
             }
 
             match result_terms.len() {
@@ -534,6 +682,14 @@ pub fn simplify_addition(terms: &[Expression]) -> Expression {
             }
         }
     }
+}
+
+pub fn simplify_addition(terms: &[Expression]) -> Expression {
+    simplify_addition_with_options(terms, true)
+}
+
+pub fn simplify_addition_without_factoring(terms: &[Expression]) -> Expression {
+    simplify_addition_with_options(terms, false)
 }
 
 #[cfg(test)]
@@ -936,12 +1092,58 @@ mod tests {
     }
 
     #[test]
-    fn test_common_factor_exposes_pythagorean_identity() {
-        let expr =
-            expr!((2 * x * ((cos(y)) ^ 2) * cos(z) * sin(z)) + (2 * x * ((sin(y)) ^ 2) * cos(z) * sin(z)));
+    fn test_extracts_common_symbolic_factor() {
+        let expr = expr!((x * y) + (x * z));
         let simplified = expr.simplify();
 
-        assert_eq!(simplified, expr!(2 * x * cos(z) * sin(z)));
+        assert_eq!(simplified, expr!(x * (y + z)));
+    }
+
+    #[test]
+    fn test_extracts_common_integer_gcd_factor() {
+        let expr = expr!((2 * x) + (4 * y));
+        let simplified = expr.simplify();
+
+        assert_eq!(simplified, expr!(2 * (x + (2 * y))));
+    }
+
+    #[test]
+    fn test_extracts_common_factor_with_implicit_one() {
+        let expr = expr!(x + (x * y));
+        let simplified = expr.simplify();
+
+        assert_eq!(simplified, expr!(x * (1 + y)));
+    }
+
+    #[test]
+    fn test_common_factor_exposes_pythagorean_identity() {
+        let expr = expr!(
+            ((cos(y)) ^ 2 * cos(z) * sin(z)) + ((sin(y)) ^ 2 * cos(z) * sin(z))
+        );
+        let simplified = expr.simplify();
+
+        assert_eq!(simplified, expr!(cos(z) * sin(z)));
+    }
+
+    #[test]
+    fn test_does_not_factor_noncommutative_prefix() {
+        let matrix_a = symbol!(A; matrix);
+        let matrix_b = symbol!(B; matrix);
+        let matrix_c = symbol!(C; matrix);
+
+        let expr = Expression::add(vec![
+            Expression::mul(vec![
+                Expression::symbol(matrix_a.clone()),
+                Expression::symbol(matrix_b),
+            ]),
+            Expression::mul(vec![
+                Expression::symbol(matrix_a),
+                Expression::symbol(matrix_c),
+            ]),
+        ]);
+        let simplified = expr.simplify();
+
+        assert_eq!(simplified, expr);
     }
 
     #[test]

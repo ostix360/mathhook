@@ -42,6 +42,42 @@ fn test_2x2_unique_solution() {
 }
 
 #[test]
+fn test_2x2_factorized_equations_expand_before_coefficient_extraction() {
+    let solver = SystemSolver::new();
+    let x = symbol!(x);
+    let y = symbol!(y);
+
+    // System: 2(x - y) = 0, 3(x + y - 4) = 0
+    // Solution: x = 2, y = 2
+    let eq1 = Expression::mul(vec![
+        Expression::integer(2),
+        Expression::add(vec![
+            Expression::symbol(x.clone()),
+            Expression::mul(vec![Expression::integer(-1), Expression::symbol(y.clone())]),
+        ]),
+    ]);
+    let eq2 = Expression::mul(vec![
+        Expression::integer(3),
+        Expression::add(vec![
+            Expression::symbol(x.clone()),
+            Expression::symbol(y.clone()),
+            Expression::integer(-4),
+        ]),
+    ]);
+
+    let result = solver.solve_system(&[eq1, eq2], &[x, y]);
+
+    match result {
+        SolverResult::Multiple(solutions) => {
+            assert_eq!(solutions.len(), 2);
+            assert_eq!(solutions[0], Expression::integer(2));
+            assert_eq!(solutions[1], Expression::integer(2));
+        }
+        _ => panic!("Expected unique solution, got {:?}", result),
+    }
+}
+
+#[test]
 fn test_3x3_unique_solution() {
     let solver = SystemSolver::new();
     let x = symbol!(x);

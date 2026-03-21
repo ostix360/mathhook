@@ -247,7 +247,7 @@ fn test_rewrite_log_product() {
     assert!(matches.is_some());
 
     let simplified = expr.simplify();
-    assert!(matches!(simplified, Expression::Function { .. }));
+    assert!(matches!(simplified, Expression::Add { .. }));
 }
 
 #[test]

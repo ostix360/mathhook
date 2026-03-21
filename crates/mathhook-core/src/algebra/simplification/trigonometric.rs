@@ -34,8 +34,7 @@ fn extract_negative_argument(arg: &Expression) -> Option<Expression> {
         Expression::Number(num) if is_negative_number(num) => {
             Some(Expression::Number(abs_number(num)))
         }
-        Expression::Mul(factors)
-            if matches!(factors.first(), Some(Expression::Number(num)) if is_negative_number(num)) =>
+        Expression::Mul(factors) if matches!(factors.first(), Some(Expression::Number(num)) if is_negative_number(num)) =>
         {
             let mut positive_factors = factors.to_vec();
             if let Expression::Number(num) = &factors[0] {

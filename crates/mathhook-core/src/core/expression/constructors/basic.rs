@@ -137,6 +137,14 @@ impl Expression {
         crate::simplify::arithmetic::simplify_addition(&terms)
     }
 
+    /// Create an addition expression without common-factor extraction.
+    ///
+    /// This is intended for algebraic development steps where distributing terms
+    /// should not immediately refactor the result back into a product.
+    pub fn add_without_factoring(terms: Vec<Expression>) -> Self {
+        crate::simplify::arithmetic::simplify_addition_without_factoring(&terms)
+    }
+
     /// Create a multiplication expression in canonical form
     ///
     /// This constructor automatically produces a canonical form expression by:

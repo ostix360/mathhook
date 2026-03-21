@@ -412,7 +412,7 @@ fn integrate_pattern(pattern: &PatternKey, var: &Symbol) -> Expression {
 
         PatternKey::NaturalLog => {
             // ∫ln(x) dx = x*ln(x) - x
-            Expression::add(vec![
+            Expression::add_without_factoring(vec![
                 Expression::mul(vec![x.clone(), Expression::function("ln", vec![x.clone()])]),
                 Expression::mul(vec![Expression::integer(-1), x]),
             ])

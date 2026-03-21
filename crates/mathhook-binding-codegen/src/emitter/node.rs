@@ -618,26 +618,28 @@ impl NodeEmitter {
                         }
                         _ => name.to_string(),
                     },
-                    MappedType::Collected { item_type } => match &**item_type {
-                        MappedType::Direct { node_type, .. }
-                            if node_type.starts_with("Js") && node_type != "JsObject" =>
-                        {
-                            if node_type == "JsSymbol" {
-                                // SymbolOrExpression wraps Symbol in .0
-                                format!("{}.as_ref().map(|v| v.iter().map(|x| x.0.clone()).collect())", name)
-                            } else if is_owned {
-                                // Vec items are &JsX, must clone
-                                format!("{}.as_ref().map(|v| v.iter().map(|x| x.inner.clone()).collect())", name)
-                            } else {
-                                // Core wants references
-                                format!(
-                                    "{}.as_ref().map(|v| v.iter().map(|x| &x.inner).collect())",
-                                    name
-                                )
+                    MappedType::Collected { item_type } => {
+                        match &**item_type {
+                            MappedType::Direct { node_type, .. }
+                                if node_type.starts_with("Js") && node_type != "JsObject" =>
+                            {
+                                if node_type == "JsSymbol" {
+                                    // SymbolOrExpression wraps Symbol in .0
+                                    format!("{}.as_ref().map(|v| v.iter().map(|x| x.0.clone()).collect())", name)
+                                } else if is_owned {
+                                    // Vec items are &JsX, must clone
+                                    format!("{}.as_ref().map(|v| v.iter().map(|x| x.inner.clone()).collect())", name)
+                                } else {
+                                    // Core wants references
+                                    format!(
+                                        "{}.as_ref().map(|v| v.iter().map(|x| &x.inner).collect())",
+                                        name
+                                    )
+                                }
                             }
+                            _ => name.to_string(),
                         }
-                        _ => name.to_string(),
-                    },
+                    }
                     _ => name.to_string(),
                 }
             }

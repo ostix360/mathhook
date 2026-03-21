@@ -6,6 +6,7 @@
 use crate::algebra::groebner::{GroebnerBasis, MonomialOrder};
 use crate::algebra::polynomial_advanced::AdvancedPolynomial;
 use crate::algebra::solvers::{EquationSolver, SolverResult, SystemEquationSolver};
+use crate::algebra::Expand;
 use crate::core::{Expression, Number, Symbol};
 use crate::educational::step_by_step::{Step, StepByStepExplanation};
 use crate::error::MathError;
@@ -225,12 +226,15 @@ impl SystemSolver {
         var1: &Symbol,
         var2: &Symbol,
     ) -> SolverResult {
+        let eq1 = eq1.expand();
+        let eq2 = eq2.expand();
+
         // Extract coefficients from both equations
         // eq1: a1*x + b1*y + c1 = 0
         // eq2: a2*x + b2*y + c2 = 0
 
-        let (a1, b1, c1) = self.extract_linear_coefficients_2var(eq1, var1, var2);
-        let (a2, b2, c2) = self.extract_linear_coefficients_2var(eq2, var1, var2);
+        let (a1, b1, c1) = self.extract_linear_coefficients_2var(&eq1, var1, var2);
+        let (a2, b2, c2) = self.extract_linear_coefficients_2var(&eq2, var1, var2);
 
         // Solve using Cramer's rule or elimination
         self.solve_using_cramers_rule(&a1, &b1, &c1, &a2, &b2, &c2)
@@ -416,7 +420,8 @@ impl SystemSolver {
         let mut b_vec: Vec<Expression> = Vec::with_capacity(n);
 
         for equation in equations {
-            let (coeffs, constant) = self.extract_coefficients_nvar(equation, variables);
+            let expanded_equation = equation.expand();
+            let (coeffs, constant) = self.extract_coefficients_nvar(&expanded_equation, variables);
             // Negate constant to move to RHS: ax + by + c = 0 → ax + by = -c
             let rhs = Expression::mul(vec![Expression::integer(-1), constant]).simplify();
 
