@@ -429,6 +429,15 @@ impl Expression {
             _ => None,
         }
     }
+
+    /// Returns Some(matrix) if this expression is a Matrix, None otherwise.
+    #[inline]
+    pub fn as_matrix(&self) -> Option<crate::matrices::unified::Matrix> {
+        match self {
+            Expression::Matrix(m) => Some(m.as_ref().clone()),
+            _ => None,
+        }
+    }
 }
 
 #[cfg(test)]
